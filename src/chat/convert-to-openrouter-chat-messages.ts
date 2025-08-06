@@ -101,11 +101,6 @@ export function convertToOpenRouterChatMessages(
 
                 // Handle PDF files
                 if (part.mediaType === 'application/pdf') {
-                  // OpenRouter doesn't support URL objects for PDFs, throw error
-                  if (part.data instanceof URL) {
-                    throw new Error('PDF file parts with URLs are not supported');
-                  }
-
                   const fileName = String(
                     part.providerOptions?.openrouter?.filename ??
                     part.filename ??
