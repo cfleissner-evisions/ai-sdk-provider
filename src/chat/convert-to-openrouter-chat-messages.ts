@@ -54,12 +54,12 @@ export function convertToOpenRouterChatMessages(
           const contentWithCacheControl: string | ChatCompletionContentPart[] =
             cacheControl
               ? [
-                  {
-                    type: 'text',
-                    text: content[0].text,
-                    cache_control: cacheControl,
-                  },
-                ]
+                {
+                  type: 'text',
+                  text: content[0].text,
+                  cache_control: cacheControl,
+                },
+              ]
               : content[0].text;
           messages.push({
             role: 'user',
@@ -99,15 +99,70 @@ export function convertToOpenRouterChatMessages(
                   };
                 }
 
-                const fileName = String(
-                  part.providerOptions?.openrouter?.filename ??
+                // Handle PDF files
+                if (part.mediaType === 'application/pdf') {
+                  // OpenRouter doesn't support URL objects for PDFs, throw error
+                  if (part.data instanceof URL) {
+                    throw new Error('PDF file parts with URLs are not supported');
+                  }
+
+                  const fileName = String(
+                    part.providerOptions?.openrouter?.filename ??
                     part.filename ??
                     '',
+                  );
+
+                  // Handle OpenAI-style file IDs (strings starting with "file-")
+                  if (typeof part.data === 'string' && part.data.startsWith('file-')) {
+                    return {
+                      type: 'file' as const,
+                      file: {
+                        file_id: part.data,
+                      },
+                    } satisfies ChatCompletionContentPart;
+                  }
+
+                  const fileData = getFileUrl({
+                    part,
+                    defaultMediaType: 'application/pdf',
+                  });
+
+                  // For URLs, don't add cache_control at the file level
+                  if (
+                    isUrl({
+                      url: fileData,
+                      protocols: new Set(['http:', 'https:']),
+                    })
+                  ) {
+                    return {
+                      type: 'file' as const,
+                      file: {
+                        filename: fileName,
+                        file_data: fileData,
+                      },
+                    } satisfies ChatCompletionContentPart;
+                  }
+
+                  return {
+                    type: 'file' as const,
+                    file: {
+                      filename: fileName,
+                      file_data: fileData,
+                    },
+                    cache_control: cacheControl,
+                  } satisfies ChatCompletionContentPart;
+                }
+
+                // For other file types, fall back to default handling
+                const fileName = String(
+                  part.providerOptions?.openrouter?.filename ??
+                  part.filename ??
+                  '',
                 );
 
                 const fileData = getFileUrl({
                   part,
-                  defaultMediaType: 'application/pdf',
+                  defaultMediaType: 'application/octet-stream',
                 });
 
                 if (
